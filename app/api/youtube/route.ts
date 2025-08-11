@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import ytdl from '@distube/ytdl-core';
-import { YtDlp } from 'ytdlp-nodejs';
 
 // Helper function to validate video ID
 function isValidVideoId(videoId: string): boolean {
@@ -23,7 +22,7 @@ function extractVideoId(url: string): string | null {
 }
 
 // Helper function to get video info with retries using ytdl-core
-async function getVideoInfoWithYtdl(videoUrl: string, maxRetries = 3): Promise<any> {
+async function getVideoInfoWithYtdl(videoUrl: string, maxRetries = 5): Promise<any> {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
             console.log(`Attempt ${attempt} to fetch video info with ytdl-core for: ${videoUrl}`);
@@ -34,23 +33,9 @@ async function getVideoInfoWithYtdl(videoUrl: string, maxRetries = 3): Promise<a
             if (attempt === maxRetries) {
                 throw error;
             }
-            // Wait before retrying
-            await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+            // Wait before retrying with exponential backoff
+            await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, attempt - 1)));
         }
-    }
-}
-
-// Helper function to get video info using yt-dlp
-async function getVideoInfoWithYtdlp(videoUrl: string): Promise<any> {
-    try {
-        console.log(`Attempting to fetch video info with yt-dlp for: ${videoUrl}`);
-        const ytdlp = new YtDlp();
-
-        const info = await ytdlp.getInfoAsync(videoUrl);
-        return info;
-    } catch (error) {
-        console.error('yt-dlp attempt failed:', error);
-        throw error;
     }
 }
 
@@ -66,24 +51,6 @@ function getBestAudioFormat(formats: any[]): any {
     return audioFormats.sort((a, b) => {
         const aBitrate = a.audioBitrate || 0;
         const bBitrate = b.audioBitrate || 0;
-        return bBitrate - aBitrate;
-    })[0];
-}
-
-// Helper function to get best audio format from yt-dlp
-function getBestAudioFormatFromYtdlp(formats: any[]): any {
-    const audioFormats = formats.filter(format =>
-        format.vcodec === 'none' && format.acodec !== 'none'
-    );
-
-    if (!audioFormats || audioFormats.length === 0) {
-        throw new Error('No audio format available for this video');
-    }
-
-    // Sort by quality and get the best one
-    return audioFormats.sort((a, b) => {
-        const aBitrate = a.abr || 0;
-        const bBitrate = b.abr || 0;
         return bBitrate - aBitrate;
     })[0];
 }
@@ -110,29 +77,13 @@ export async function GET(request: NextRequest) {
         const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
         let videoInfo: any;
         let audioFormat: any;
-        let method = '';
 
-        // Try ytdl-core first
-        try {
-            videoInfo = await getVideoInfoWithYtdl(videoUrl);
-            audioFormat = getBestAudioFormat(videoInfo.formats);
-            method = 'ytdl-core';
-        } catch (ytdlError) {
-            console.error('ytdl-core failed, trying yt-dlp:', ytdlError);
-
-            // Fallback to yt-dlp
-            try {
-                videoInfo = await getVideoInfoWithYtdlp(videoUrl);
-                audioFormat = getBestAudioFormatFromYtdlp(videoInfo.formats);
-                method = 'yt-dlp';
-            } catch (ytdlpError) {
-                console.error('yt-dlp also failed:', ytdlpError);
-                throw new Error('Both ytdl-core and yt-dlp failed to extract video information');
-            }
-        }
+        // Use ytdl-core with retries
+        videoInfo = await getVideoInfoWithYtdl(videoUrl);
+        audioFormat = getBestAudioFormat(videoInfo.formats);
 
         // Extract video details
-        const videoDetails = videoInfo.videoDetails || videoInfo;
+        const videoDetails = videoInfo.videoDetails;
 
         if (!videoDetails) {
             return NextResponse.json(
@@ -143,7 +94,7 @@ export async function GET(request: NextRequest) {
 
         // Get title and author
         const title = videoDetails.title || 'Unknown Title';
-        const author = videoDetails.author?.name || videoDetails.uploader || videoDetails.author || 'Unknown Artist';
+        const author = videoDetails.author?.name || videoDetails.author || 'Unknown Artist';
 
         // Get duration
         let duration = 0;
@@ -163,7 +114,7 @@ export async function GET(request: NextRequest) {
         }
 
         // Get audio URL
-        const audioUrl = audioFormat.url || audioFormat.url || '';
+        const audioUrl = audioFormat.url || '';
 
         if (!audioUrl) {
             return NextResponse.json(
@@ -173,7 +124,7 @@ export async function GET(request: NextRequest) {
         }
 
         // Get quality info
-        const quality = audioFormat.audioBitrate || audioFormat.abr || 'Unknown';
+        const quality = audioFormat.audioBitrate || 'Unknown';
 
         return NextResponse.json({
             success: true,
@@ -184,7 +135,7 @@ export async function GET(request: NextRequest) {
             audioUrl: audioUrl,
             videoId: videoId,
             quality: `${quality}kbps`,
-            method: method,
+            method: 'ytdl-core',
             note: 'Real YouTube audio extraction'
         });
 
@@ -206,6 +157,8 @@ export async function GET(request: NextRequest) {
                 errorMessage = 'This video requires age verification and cannot be processed.';
             } else if (error.message.includes('This video is not available')) {
                 errorMessage = 'This video is not available in your region or has been removed.';
+            } else if (error.message.includes('No audio format available')) {
+                errorMessage = 'No audio format is available for this video.';
             } else {
                 errorMessage = error.message;
             }
