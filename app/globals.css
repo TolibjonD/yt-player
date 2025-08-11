@@ -159,7 +159,7 @@
 }
 
 @layer components {
-  /* Beautiful Glassmorphism Effects */
+  /* Optimized Glassmorphism Effects */
   .glass-effect {
     backdrop-filter: blur(20px);
     background: linear-gradient(
@@ -170,6 +170,8 @@
     border: 1px solid rgba(255, 255, 255, 0.2);
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1),
       inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    will-change: transform;
+    transform: translateZ(0);
   }
 
   .dark .glass-effect {
@@ -202,7 +204,7 @@
     );
   }
 
-  /* Shining Effects */
+  /* Optimized Shining Effects */
   .shining-effect {
     position: relative;
     overflow: hidden;
@@ -221,7 +223,8 @@
       rgba(255, 255, 255, 0.2),
       transparent
     );
-    transition: left 0.5s;
+    transition: left 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    will-change: left;
   }
 
   .shining-effect:hover::before {
@@ -272,7 +275,7 @@
     background-clip: text;
   }
 
-  /* Animated Background */
+  /* Optimized Animated Background */
   .animated-bg {
     background: linear-gradient(
       -45deg,
@@ -282,7 +285,8 @@
       hsl(var(--color-orange) / 0.05)
     );
     background-size: 400% 400%;
-    animation: gradientShift 15s ease infinite;
+    animation: gradientShift 20s ease infinite;
+    will-change: background-position;
   }
 
   @keyframes gradientShift {
@@ -297,24 +301,26 @@
     }
   }
 
-  /* Floating Animation */
+  /* Optimized Floating Animation */
   .floating {
-    animation: floating 3s ease-in-out infinite;
+    animation: floating 4s ease-in-out infinite;
+    will-change: transform;
   }
 
   @keyframes floating {
     0%,
     100% {
-      transform: translateY(0px);
+      transform: translateY(0px) translateZ(0);
     }
     50% {
-      transform: translateY(-10px);
+      transform: translateY(-10px) translateZ(0);
     }
   }
 
-  /* Pulse Animation */
+  /* Optimized Pulse Animation */
   .animate-pulse-slow {
-    animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    animation: pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    will-change: opacity;
   }
 
   @keyframes pulse {
@@ -328,7 +334,8 @@
   }
 
   .animate-bounce-slow {
-    animation: bounce 2s infinite;
+    animation: bounce 3s infinite;
+    will-change: transform;
   }
 
   /* Scrollbar Styling */
@@ -363,73 +370,79 @@
     background-color: hsl(var(--color-primary) / 0.5);
   }
 
-  /* Animation Classes */
+  /* Optimized Animation Classes */
   .animate-in {
-    animation: animateIn 0.3s ease-out;
+    animation: animateIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    will-change: opacity, transform;
   }
 
   .animate-out {
-    animation: animateOut 0.3s ease-in;
+    animation: animateOut 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    will-change: opacity, transform;
   }
 
   .slide-in-from-bottom {
-    animation: slideInFromBottom 0.3s ease-out;
+    animation: slideInFromBottom 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    will-change: opacity, transform;
   }
 
   .slide-in-from-top {
-    animation: slideInFromTop 0.3s ease-out;
+    animation: slideInFromTop 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    will-change: opacity, transform;
   }
 
   .fade-in {
-    animation: fadeIn 0.3s ease-out;
+    animation: fadeIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    will-change: opacity;
   }
 
   .scale-in {
-    animation: scaleIn 0.3s ease-out;
+    animation: scaleIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    will-change: opacity, transform;
   }
 
   /* Animation Keyframes */
   @keyframes animateIn {
     from {
       opacity: 0;
-      transform: translateY(10px);
+      transform: translateY(10px) translateZ(0);
     }
     to {
       opacity: 1;
-      transform: translateY(0);
+      transform: translateY(0) translateZ(0);
     }
   }
 
   @keyframes animateOut {
     from {
       opacity: 1;
-      transform: translateY(0);
+      transform: translateY(0) translateZ(0);
     }
     to {
       opacity: 0;
-      transform: translateY(-10px);
+      transform: translateY(-10px) translateZ(0);
     }
   }
 
   @keyframes slideInFromBottom {
     from {
       opacity: 0;
-      transform: translateY(20px);
+      transform: translateY(20px) translateZ(0);
     }
     to {
       opacity: 1;
-      transform: translateY(0);
+      transform: translateY(0) translateZ(0);
     }
   }
 
   @keyframes slideInFromTop {
     from {
       opacity: 0;
-      transform: translateY(-20px);
+      transform: translateY(-20px) translateZ(0);
     }
     to {
       opacity: 1;
-      transform: translateY(0);
+      transform: translateY(0) translateZ(0);
     }
   }
 
@@ -445,28 +458,29 @@
   @keyframes scaleIn {
     from {
       opacity: 0;
-      transform: scale(0.9);
+      transform: scale(0.9) translateZ(0);
     }
     to {
       opacity: 1;
-      transform: scale(1);
+      transform: scale(1) translateZ(0);
     }
   }
 
-  /* Music Wave Animation */
+  /* Optimized Music Wave Animation */
   @keyframes musicWave {
     0%,
     40%,
     100% {
-      transform: scaleY(0.4);
+      transform: scaleY(0.4) translateZ(0);
     }
     20% {
-      transform: scaleY(1);
+      transform: scaleY(1) translateZ(0);
     }
   }
 
   .music-wave {
     animation: musicWave 1.2s ease-in-out infinite;
+    will-change: transform;
   }
 
   .music-wave:nth-child(2) {
@@ -509,7 +523,7 @@
       0 0 0 4px hsl(var(--color-background));
   }
 
-  /* Button Styles */
+  /* Optimized Button Styles */
   .btn-primary {
     background: linear-gradient(
       135deg,
@@ -517,13 +531,14 @@
       hsl(var(--color-orange))
     );
     color: white;
-    transition: all 0.3s ease;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     position: relative;
     overflow: hidden;
+    will-change: transform;
   }
 
   .btn-primary:hover {
-    transform: translateY(-2px);
+    transform: translateY(-2px) translateZ(0);
     box-shadow: 0 8px 25px rgba(239, 68, 68, 0.3);
   }
 
@@ -535,7 +550,8 @@
     );
     color: hsl(var(--color-foreground));
     border: 1px solid hsl(var(--color-rose) / 0.2);
-    transition: all 0.3s ease;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    will-change: transform;
   }
 
   .btn-secondary:hover {
@@ -544,11 +560,12 @@
       hsl(var(--color-rose) / 0.2),
       hsl(var(--color-orange) / 0.2)
     );
-    transform: translateY(-1px);
+    transform: translateY(-1px) translateZ(0);
   }
 
   .btn-ghost {
-    transition: all 0.3s ease;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    will-change: transform;
   }
 
   .btn-ghost:hover {
@@ -557,10 +574,10 @@
       hsl(var(--color-rose) / 0.1),
       hsl(var(--color-orange) / 0.1)
     );
-    transform: translateY(-1px);
+    transform: translateY(-1px) translateZ(0);
   }
 
-  /* Card Styles */
+  /* Optimized Card Styles */
   .card {
     background: linear-gradient(
       135deg,
@@ -572,6 +589,8 @@
     border-radius: 0.5rem;
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1),
       0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    will-change: transform;
+    transform: translateZ(0);
   }
 
   .dark .card {
@@ -585,16 +604,17 @@
 
   .card-hover {
     @extend .card;
-    transition: all 0.3s ease;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    will-change: transform;
   }
 
   .card-hover:hover {
-    transform: translateY(-4px);
+    transform: translateY(-4px) translateZ(0);
     box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1),
       0 10px 10px -5px rgba(0, 0, 0, 0.04);
   }
 
-  /* Slider Styles */
+  /* Optimized Slider Styles */
   .slider {
     -webkit-appearance: none;
     appearance: none;
@@ -617,11 +637,13 @@
     height: 12px;
     cursor: pointer;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    will-change: transform;
   }
 
   .slider::-webkit-slider-thumb:hover {
     background: hsl(var(--color-orange));
-    transform: scale(1.2);
+    transform: scale(1.2) translateZ(0);
   }
 
   .slider::-moz-range-track {
@@ -639,10 +661,12 @@
     cursor: pointer;
     border: none;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    will-change: transform;
   }
 
   .slider::-moz-range-thumb:hover {
     background: hsl(var(--color-orange));
-    transform: scale(1.2);
+    transform: scale(1.2) translateZ(0);
   }
 }

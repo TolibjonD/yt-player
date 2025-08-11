@@ -1,65 +1,150 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     Play, Pause, SkipBack, SkipForward, Volume2, VolumeX,
     Shuffle, Repeat, Repeat1, X, Maximize2, Minimize2,
-    Heart, MoreHorizontal, Clock, Music
+    Heart, MoreHorizontal, Clock, Music, Download
 } from "lucide-react";
-import usePlayerStore from "@/store/player-store";
+import usePlayerStore, { usePlayerActions } from "@/store/player-store";
 import { cn } from "@/lib/utils";
+
+// Optimized animation variants
+const playerVariants = {
+    hidden: { y: 100, opacity: 0 },
+    visible: {
+        y: 0,
+        opacity: 1,
+    },
+    exit: {
+        y: 100,
+        opacity: 0,
+    }
+};
+
+const volumeSliderVariants = {
+    hidden: { opacity: 0, y: 10, scale: 0.95 },
+    visible: {
+        opacity: 1,
+        y: 0,
+        scale: 1,
+    },
+    exit: {
+        opacity: 0,
+        y: 10,
+        scale: 0.95,
+    }
+};
+
+// Memoized playing indicator component
+const PlayingIndicator = ({ isPlaying }: { isPlaying: boolean }) => {
+    if (!isPlaying) return null;
+
+    return (
+        <motion.div
+            className="absolute inset-0 bg-black/20 flex items-center justify-center"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+        >
+            <div className="flex space-x-1">
+                {[...Array(3)].map((_, i) => (
+                    <motion.div
+                        key={i}
+                        className="w-1 h-3 bg-white rounded-full"
+                        animate={{
+                            scaleY: [0.4, 1, 0.4],
+                        }}
+                        transition={{
+                            duration: 1.2,
+                            repeat: Infinity,
+                            delay: i * 0.1,
+                            ease: "easeInOut"
+                        }}
+                    />
+                ))}
+            </div>
+        </motion.div>
+    );
+};
 
 export default function Player() {
     const audioRef = useRef<HTMLAudioElement>(null);
     const [isMinimized, setIsMinimized] = useState(false);
     const [showVolumeSlider, setShowVolumeSlider] = useState(false);
-    const [isLiked, setIsLiked] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
 
     const {
         currentTrack, isPlaying, currentTime, duration, volume, isMuted,
-        isShuffled, repeatMode, isPlayerVisible, setIsPlaying, setCurrentTime,
+        isShuffled, repeatMode, isPlayerVisible, likedTracks, setIsPlaying, setCurrentTime,
         setDuration, setVolume, setIsMuted, setIsShuffled, setRepeatMode,
         playNext, playPrevious, setIsPlayerVisible,
     } = usePlayerStore();
 
-    // Audio event handlers
+    const { toggleLikedTrack, incrementDownloadCount } = usePlayerActions();
+
+    // Memoized formatted time
+    const formattedCurrentTime = useMemo(() => {
+        if (isNaN(currentTime)) return "0:00";
+        const minutes = Math.floor(currentTime / 60);
+        const seconds = Math.floor(currentTime % 60);
+        return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    }, [currentTime]);
+
+    const formattedDuration = useMemo(() => {
+        if (isNaN(duration)) return "0:00";
+        const minutes = Math.floor(duration / 60);
+        const seconds = Math.floor(duration % 60);
+        return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    }, [duration]);
+
+    // Memoized progress percentage
+    const progressPercentage = useMemo(() => {
+        return duration ? (currentTime / duration) * 100 : 0;
+    }, [currentTime, duration]);
+
+    // Optimized event handlers
+    const handleTimeUpdate = useCallback(() => {
+        if (audioRef.current) {
+            setCurrentTime(audioRef.current.currentTime);
+        }
+    }, [setCurrentTime]);
+
+    const handleLoadedMetadata = useCallback(() => {
+        if (audioRef.current) {
+            setDuration(audioRef.current.duration);
+            setIsLoading(false);
+        }
+    }, [setDuration, setIsLoading]);
+
+    const handleEnded = useCallback(() => {
+        if (repeatMode === 'one' && audioRef.current) {
+            audioRef.current.currentTime = 0;
+            audioRef.current.play().catch(console.error);
+        } else {
+            playNext();
+        }
+    }, [repeatMode, playNext]);
+
+    const handleError = useCallback((e: Event) => {
+        console.error('Audio playback error:', e);
+        setIsPlaying(false);
+        setIsLoading(false);
+    }, [setIsPlaying, setIsLoading]);
+
+    const handleLoadStart = useCallback(() => {
+        setIsLoading(true);
+    }, [setIsLoading]);
+
+    const handleCanPlay = useCallback(() => {
+        setIsLoading(false);
+    }, [setIsLoading]);
+
+    // Audio event listeners
     useEffect(() => {
         const audio = audioRef.current;
         if (!audio) return;
-
-        const handleTimeUpdate = () => {
-            setCurrentTime(audio.currentTime);
-        };
-
-        const handleLoadedMetadata = () => {
-            setDuration(audio.duration);
-            setIsLoading(false);
-        };
-
-        const handleEnded = () => {
-            if (repeatMode === 'one') {
-                audio.currentTime = 0;
-                audio.play().catch(console.error);
-            } else {
-                playNext();
-            }
-        };
-
-        const handleError = (e: Event) => {
-            console.error('Audio playback error:', e);
-            setIsPlaying(false);
-            setIsLoading(false);
-        };
-
-        const handleLoadStart = () => {
-            setIsLoading(true);
-        };
-
-        const handleCanPlay = () => {
-            setIsLoading(false);
-        };
 
         audio.addEventListener('timeupdate', handleTimeUpdate);
         audio.addEventListener('loadedmetadata', handleLoadedMetadata);
@@ -76,7 +161,7 @@ export default function Player() {
             audio.removeEventListener('loadstart', handleLoadStart);
             audio.removeEventListener('canplay', handleCanPlay);
         };
-    }, [repeatMode, playNext, setCurrentTime, setDuration, setIsPlaying]);
+    }, [handleTimeUpdate, handleLoadedMetadata, handleEnded, handleError, handleLoadStart, handleCanPlay]);
 
     // Play/pause effect
     useEffect(() => {
@@ -116,25 +201,19 @@ export default function Player() {
         audio.currentTime = 0;
         audio.src = currentTrack.url;
         audio.load();
-    }, [currentTrack]);
+    }, [currentTrack, setIsLoading]);
 
-    const formatTime = (time: number): string => {
-        if (isNaN(time)) return "0:00";
-        const minutes = Math.floor(time / 60);
-        const seconds = Math.floor(time % 60);
-        return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-    };
-
-    const handleProgressChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Optimized event handlers
+    const handleProgressChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
         const audio = audioRef.current;
         if (!audio) return;
 
         const newTime = parseFloat(e.target.value);
         audio.currentTime = newTime;
         setCurrentTime(newTime);
-    };
+    }, [setCurrentTime]);
 
-    const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleVolumeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
         const newVolume = parseFloat(e.target.value);
         setVolume(newVolume);
         if (newVolume === 0) {
@@ -142,27 +221,40 @@ export default function Player() {
         } else if (isMuted) {
             setIsMuted(false);
         }
-    };
+    }, [setVolume, setIsMuted, isMuted]);
 
-    const toggleMute = () => {
+    const toggleMute = useCallback(() => {
         setIsMuted(!isMuted);
-    };
+    }, [isMuted, setIsMuted]);
 
-    const toggleShuffle = () => {
+    const toggleShuffle = useCallback(() => {
         setIsShuffled(!isShuffled);
-    };
+    }, [isShuffled, setIsShuffled]);
 
-    const toggleRepeatMode = () => {
+    const toggleRepeatMode = useCallback(() => {
         const modes: Array<'none' | 'one' | 'all'> = ['none', 'one', 'all'];
         const currentIndex = modes.indexOf(repeatMode);
         const nextIndex = (currentIndex + 1) % modes.length;
         setRepeatMode(modes[nextIndex]);
-    };
+    }, [repeatMode, setRepeatMode]);
 
-    const handlePlayPause = () => {
+    const handlePlayPause = useCallback(() => {
         if (!currentTrack) return;
         setIsPlaying(!isPlaying);
-    };
+    }, [currentTrack, isPlaying, setIsPlaying]);
+
+    const handleMinimizeToggle = useCallback(() => {
+        setIsMinimized(!isMinimized);
+    }, [isMinimized]);
+
+    const handleClose = useCallback(() => {
+        setIsPlayerVisible(false);
+    }, [setIsPlayerVisible]);
+
+    const handleLikeToggle = useCallback(() => {
+        if (!currentTrack) return;
+        toggleLikedTrack(currentTrack.id);
+    }, [currentTrack, toggleLikedTrack]);
 
     if (!isPlayerVisible || !currentTrack) {
         return null;
@@ -175,10 +267,15 @@ export default function Player() {
                     "fixed bottom-0 left-0 right-0 z-50 glass-effect border-t border-white/20 dark:border-white/10",
                     isMinimized ? "h-16" : "h-24"
                 )}
-                initial={{ y: 100 }}
-                animate={{ y: 0 }}
-                exit={{ y: 100 }}
-                transition={{ type: "spring", damping: 25, stiffness: 200 }}
+                variants={playerVariants}
+                initial="hidden"
+                animate="visible"
+                exit="exit"
+                transition={{
+                    type: "spring",
+                    damping: 25,
+                    stiffness: 200,
+                }}
             >
                 {/* Hidden audio element */}
                 <audio ref={audioRef} preload="metadata" />
@@ -201,6 +298,7 @@ export default function Player() {
                                         src={currentTrack.thumbnail}
                                         alt={currentTrack.title}
                                         className="w-full h-full object-cover"
+                                        loading="lazy"
                                     />
                                 ) : (
                                     <div className="w-full h-full bg-gradient-to-br from-primary/20 to-primary/40 flex items-center justify-center">
@@ -208,31 +306,7 @@ export default function Player() {
                                     </div>
                                 )}
 
-                                {/* Playing indicator */}
-                                {isPlaying && (
-                                    <motion.div
-                                        className="absolute inset-0 bg-black/20 flex items-center justify-center"
-                                        initial={{ opacity: 0 }}
-                                        animate={{ opacity: 1 }}
-                                    >
-                                        <div className="flex space-x-1">
-                                            {[...Array(3)].map((_, i) => (
-                                                <motion.div
-                                                    key={i}
-                                                    className="w-1 h-3 bg-white rounded-full"
-                                                    animate={{
-                                                        scaleY: [0.4, 1, 0.4],
-                                                    }}
-                                                    transition={{
-                                                        duration: 1.2,
-                                                        repeat: Infinity,
-                                                        delay: i * 0.1,
-                                                    }}
-                                                />
-                                            ))}
-                                        </div>
-                                    </motion.div>
-                                )}
+                                <PlayingIndicator isPlaying={isPlaying} />
                             </motion.div>
 
                             {/* Track details */}
@@ -259,9 +333,9 @@ export default function Player() {
                         >
                             {/* Time display */}
                             <div className="flex items-center space-x-2 text-xs text-muted-foreground">
-                                <span>{formatTime(currentTime)}</span>
+                                <span>{formattedCurrentTime}</span>
                                 <span>/</span>
-                                <span>{formatTime(duration)}</span>
+                                <span>{formattedDuration}</span>
                             </div>
 
                             {/* Player controls */}
@@ -335,13 +409,30 @@ export default function Player() {
                         >
                             {/* Like */}
                             <button
-                                onClick={() => setIsLiked(!isLiked)}
+                                onClick={handleLikeToggle}
                                 className={cn(
                                     "p-2 rounded-md transition-colors",
-                                    isLiked ? "text-red-500 hover:bg-red-500/10" : "text-muted-foreground hover:text-foreground hover:bg-white/10"
+                                    likedTracks.includes(currentTrack.id) ? "text-red-500 hover:bg-red-500/10" : "text-muted-foreground hover:text-foreground hover:bg-white/10"
                                 )}
                             >
-                                <Heart className={cn("h-4 w-4", isLiked && "fill-current")} />
+                                <Heart className={cn("h-4 w-4", likedTracks.includes(currentTrack.id) && "fill-current")} />
+                            </button>
+
+                            {/* Download */}
+                            <button
+                                onClick={() => {
+                                    incrementDownloadCount();
+                                    const link = document.createElement('a');
+                                    link.href = currentTrack.url;
+                                    link.download = `${currentTrack.title}.mp3`;
+                                    link.target = '_blank';
+                                    document.body.appendChild(link);
+                                    link.click();
+                                    document.body.removeChild(link);
+                                }}
+                                className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-white/10 transition-colors"
+                            >
+                                <Download className="h-4 w-4" />
                             </button>
 
                             {/* Volume */}
@@ -360,9 +451,14 @@ export default function Player() {
                                     {showVolumeSlider && (
                                         <motion.div
                                             className="absolute bottom-full right-0 mb-2 p-2 glass-effect rounded-lg shadow-lg"
-                                            initial={{ opacity: 0, y: 10 }}
-                                            animate={{ opacity: 1, y: 0 }}
-                                            exit={{ opacity: 0, y: 10 }}
+                                            variants={volumeSliderVariants}
+                                            initial="hidden"
+                                            animate="visible"
+                                            exit="exit"
+                                            transition={{
+                                                duration: 0.2,
+                                                ease: "easeOut"
+                                            }}
                                             onMouseEnter={() => setShowVolumeSlider(true)}
                                             onMouseLeave={() => setShowVolumeSlider(false)}
                                         >
@@ -390,7 +486,7 @@ export default function Player() {
 
                             {/* Minimize/Maximize */}
                             <button
-                                onClick={() => setIsMinimized(!isMinimized)}
+                                onClick={handleMinimizeToggle}
                                 className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-white/10 transition-colors"
                             >
                                 {isMinimized ? <Maximize2 className="h-4 w-4" /> : <Minimize2 className="h-4 w-4" />}
@@ -398,7 +494,7 @@ export default function Player() {
 
                             {/* Close */}
                             <button
-                                onClick={() => setIsPlayerVisible(false)}
+                                onClick={handleClose}
                                 className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-white/10 transition-colors"
                             >
                                 <X className="h-4 w-4" />
@@ -423,7 +519,7 @@ export default function Player() {
                                 />
                                 <div
                                     className="h-full bg-gradient-to-r from-rose-500 to-orange-500 transition-all duration-100 rounded-r-full"
-                                    style={{ width: `${duration ? (currentTime / duration) * 100 : 0}%` }}
+                                    style={{ width: `${progressPercentage}%` }}
                                 />
                             </div>
                         </motion.div>

@@ -90,14 +90,24 @@ export default function UrlInput() {
         try {
             const response = await fetch(`/api/youtube?videoId=${videoId}`);
 
-            if (!response.ok) {
-                throw new Error("Failed to fetch video information");
-            }
-
             const data = await response.json();
 
-            if (!data.success) {
-                throw new Error(data.error || "Failed to process video");
+            if (!response.ok || !data.success) {
+                // Handle rate limiting
+                if (response.status === 429) {
+                    const retryAfter = data.retryAfter || 60;
+                    throw new Error(`Rate limit exceeded. Please wait ${retryAfter} seconds before trying again.`);
+                }
+
+                // Handle service unavailable (bot detection, etc.)
+                if (response.status === 503) {
+                    const retryAfter = data.retryAfter || 300;
+                    const suggestion = data.suggestion || 'Please try again later.';
+                    throw new Error(`${data.error} ${suggestion}`);
+                }
+
+                // Handle other errors
+                throw new Error(data.error || data.suggestion || "Failed to process video");
             }
 
             const track: Track = {
@@ -130,16 +140,19 @@ export default function UrlInput() {
             let errorMessage = "Failed to process video";
 
             if (error instanceof Error) {
-                if (error.message.includes("Failed to fetch video information")) {
-                    errorMessage = "Unable to fetch video information. Please check the URL and try again.";
-                } else if (error.message.includes("YouTube has updated their system")) {
-                    errorMessage = "YouTube has updated their system. Please try again later or use a different video.";
-                } else if (error.message.includes("Video unavailable")) {
+                // Handle specific error types
+                if (error.message.includes("Rate limit exceeded")) {
+                    errorMessage = error.message;
+                } else if (error.message.includes("YouTube is currently blocking")) {
+                    errorMessage = error.message;
+                } else if (error.message.includes("video unavailable")) {
                     errorMessage = "This video is not available or has been removed.";
-                } else if (error.message.includes("Private video")) {
+                } else if (error.message.includes("private video")) {
                     errorMessage = "This video is private and cannot be accessed.";
-                } else if (error.message.includes("Age-restricted")) {
+                } else if (error.message.includes("age-restricted")) {
                     errorMessage = "This video is age-restricted and cannot be processed.";
+                } else if (error.message.includes("no audio format available")) {
+                    errorMessage = "No audio format is available for this video.";
                 } else {
                     errorMessage = error.message;
                 }

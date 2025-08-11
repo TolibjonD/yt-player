@@ -18,10 +18,21 @@ import {
     Grid3X3
 } from "lucide-react";
 import usePlayerStore, { Track } from "@/store/player-store";
+import { usePlayerActions } from "@/store/player-store";
 import { cn } from "@/lib/utils";
 import { toast } from "react-hot-toast";
 
-export default function Playlist() {
+interface PlaylistProps {
+    onTrackLike?: (trackId: string) => void;
+    onTrackDownload?: () => void;
+    likedTracks?: string[];
+}
+
+export default function Playlist({
+    onTrackLike,
+    onTrackDownload,
+    likedTracks = []
+}: PlaylistProps) {
     const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
     const [selectedTracks, setSelectedTracks] = useState<Set<string>>(new Set());
     const [showOptions, setShowOptions] = useState<string | null>(null);
@@ -36,6 +47,8 @@ export default function Playlist() {
         setCurrentTrack,
         setIsPlaying,
     } = usePlayerStore();
+
+    const { toggleLikedTrack, incrementDownloadCount } = usePlayerActions();
 
     // Close menu when clicking outside
     useEffect(() => {
@@ -99,15 +112,44 @@ export default function Playlist() {
         setShowOptions(null);
     };
 
+    const handleTrackLike = (trackId: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        toggleLikedTrack(trackId);
+        onTrackLike?.(trackId);
+        toast.success(likedTracks.includes(trackId) ? 'Removed from liked tracks' : 'Added to liked tracks');
+    };
+
+    const handleTrackDownload = (track: Track, e: React.MouseEvent) => {
+        e.stopPropagation();
+        incrementDownloadCount();
+        onTrackDownload?.();
+
+        // Create a temporary link to download the audio
+        const link = document.createElement('a');
+        link.href = track.url;
+        link.download = `${track.title}.mp3`;
+        link.target = '_blank';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        toast.success('Download started!');
+    };
+
     const handleRemoveSelected = () => {
         selectedTracks.forEach(trackId => {
             removeTrack(trackId);
         });
         setSelectedTracks(new Set());
+        toast.success(`Removed ${selectedTracks.size} tracks`);
     };
 
     const isTrackPlaying = (track: Track) => {
         return currentTrack?.id === track.id && isPlaying;
+    };
+
+    const isTrackLiked = (trackId: string) => {
+        return likedTracks.includes(trackId);
     };
 
     return (
@@ -272,6 +314,28 @@ export default function Playlist() {
 
                                         {/* Actions */}
                                         <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            {/* Like Button */}
+                                            <button
+                                                onClick={(e) => handleTrackLike(track.id, e)}
+                                                className={cn(
+                                                    "p-2 rounded-md transition-colors",
+                                                    isTrackLiked(track.id)
+                                                        ? "text-red-500 hover:bg-red-500/10"
+                                                        : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                                                )}
+                                            >
+                                                <Heart className={cn("h-4 w-4", isTrackLiked(track.id) && "fill-current")} />
+                                            </button>
+
+                                            {/* Download Button */}
+                                            <button
+                                                onClick={(e) => handleTrackDownload(track, e)}
+                                                className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                                            >
+                                                <Download className="h-4 w-4" />
+                                            </button>
+
+                                            {/* More Options Button */}
                                             <button
                                                 onClick={(e) => {
                                                     e.stopPropagation();
@@ -312,20 +376,18 @@ export default function Playlist() {
                                                         <button
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
-                                                                // Handle like functionality
-                                                                toast.success("Like functionality coming soon!");
+                                                                handleTrackLike(track.id, e);
                                                             }}
                                                             className="w-full flex items-center space-x-2 px-3 py-2 text-sm rounded-md hover:bg-white/10 transition-colors"
                                                         >
                                                             <Heart className="h-4 w-4" />
-                                                            <span>Like</span>
+                                                            <span>{isTrackLiked(track.id) ? 'Liked' : 'Like'}</span>
                                                         </button>
 
                                                         <button
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
-                                                                // Handle download functionality
-                                                                toast.success("Download functionality coming soon!");
+                                                                handleTrackDownload(track, e);
                                                             }}
                                                             className="w-full flex items-center space-x-2 px-3 py-2 text-sm rounded-md hover:bg-white/10 transition-colors"
                                                         >

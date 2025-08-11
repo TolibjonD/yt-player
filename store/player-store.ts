@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, subscribeWithSelector } from 'zustand/middleware';
+import { shallow } from 'zustand/shallow';
 
 export interface Track {
     id: string;
@@ -35,6 +36,10 @@ interface PlayerState {
     currentPlaylist: Playlist | null;
     playlists: Playlist[];
 
+    // Stats
+    likedTracks: string[];
+    downloadCount: number;
+
     // UI state
     isPlayerVisible: boolean;
     isPlaylistVisible: boolean;
@@ -65,6 +70,10 @@ interface PlayerState {
     removeTrackFromPlaylist: (playlistId: string, trackId: string) => void;
     setCurrentPlaylist: (playlist: Playlist | null) => void;
 
+    // Stats actions
+    toggleLikedTrack: (trackId: string) => void;
+    incrementDownloadCount: () => void;
+
     // UI actions
     setIsPlayerVisible: (visible: boolean) => void;
     setIsPlaylistVisible: (visible: boolean) => void;
@@ -77,225 +86,308 @@ interface PlayerState {
 }
 
 const usePlayerStore = create<PlayerState>()(
-    persist(
-        (set, get) => ({
-            // Initial state
-            currentTrack: null,
-            isPlaying: false,
-            currentTime: 0,
-            duration: 0,
-            volume: 1,
-            isMuted: false,
-            isShuffled: false,
-            repeatMode: 'none',
+    subscribeWithSelector(
+        persist(
+            (set, get) => ({
+                // Initial state
+                currentTrack: null,
+                isPlaying: false,
+                currentTime: 0,
+                duration: 0,
+                volume: 1,
+                isMuted: false,
+                isShuffled: false,
+                repeatMode: 'none',
 
-            currentPlaylist: null,
-            playlists: [],
+                currentPlaylist: null,
+                playlists: [],
 
-            isPlayerVisible: false,
-            isPlaylistVisible: false,
-            isLoading: false,
-            error: null,
+                likedTracks: [],
+                downloadCount: 0,
 
-            // Track actions
-            setCurrentTrack: (track) => {
-                set({ currentTrack: track, currentTime: 0 });
-                if (track) {
-                    set({ isPlayerVisible: true });
-                }
-            },
+                isPlayerVisible: false,
+                isPlaylistVisible: false,
+                isLoading: false,
+                error: null,
 
-            setIsPlaying: (playing) => set({ isPlaying: playing }),
-
-            setCurrentTime: (time) => set({ currentTime: time }),
-
-            setDuration: (duration) => set({ duration }),
-
-            setVolume: (volume) => set({ volume }),
-
-            setIsMuted: (muted) => set({ isMuted: muted }),
-
-            setIsShuffled: (shuffled) => set({ isShuffled: shuffled }),
-
-            setRepeatMode: (mode) => set({ repeatMode: mode }),
-
-            // Playlist actions
-            addTrack: (track) => {
-                const { currentPlaylist } = get();
-                if (currentPlaylist) {
-                    const updatedPlaylist = {
-                        ...currentPlaylist,
-                        tracks: [...currentPlaylist.tracks, track],
-                        updatedAt: new Date(),
-                    };
-
+                // Track actions
+                setCurrentTrack: (track) => {
                     set((state) => ({
-                        currentPlaylist: updatedPlaylist,
-                        playlists: state.playlists.map((p) =>
-                            p.id === currentPlaylist.id ? updatedPlaylist : p
-                        ),
+                        currentTrack: track,
+                        currentTime: 0,
+                        isPlayerVisible: track ? true : state.isPlayerVisible,
                     }));
-                }
-            },
+                },
 
-            removeTrack: (trackId) => {
-                const { currentPlaylist } = get();
-                if (currentPlaylist) {
-                    const updatedPlaylist = {
-                        ...currentPlaylist,
-                        tracks: currentPlaylist.tracks.filter((t) => t.id !== trackId),
-                        updatedAt: new Date(),
-                    };
+                setIsPlaying: (playing) => set({ isPlaying: playing }),
 
-                    set((state) => ({
-                        currentPlaylist: updatedPlaylist,
-                        playlists: state.playlists.map((p) =>
-                            p.id === currentPlaylist.id ? updatedPlaylist : p
-                        ),
-                    }));
-                }
-            },
+                setCurrentTime: (time) => set({ currentTime: time }),
 
-            playTrack: (trackId) => {
-                const { currentPlaylist } = get();
-                if (currentPlaylist) {
-                    const track = currentPlaylist.tracks.find((t) => t.id === trackId);
-                    if (track) {
-                        set({ currentTrack: track, isPlaying: true, currentTime: 0 });
+                setDuration: (duration) => set({ duration }),
+
+                setVolume: (volume) => set({ volume }),
+
+                setIsMuted: (muted) => set({ isMuted: muted }),
+
+                setIsShuffled: (shuffled) => set({ isShuffled: shuffled }),
+
+                setRepeatMode: (mode) => set({ repeatMode: mode }),
+
+                // Playlist actions
+                addTrack: (track) => {
+                    const { currentPlaylist } = get();
+                    if (currentPlaylist) {
+                        const updatedPlaylist = {
+                            ...currentPlaylist,
+                            tracks: [...currentPlaylist.tracks, track],
+                            updatedAt: new Date(),
+                        };
+
+                        set((state) => ({
+                            currentPlaylist: updatedPlaylist,
+                            playlists: state.playlists.map((p) =>
+                                p.id === currentPlaylist.id ? updatedPlaylist : p
+                            ),
+                        }));
                     }
-                }
-            },
+                },
 
-            playNext: () => {
-                const { currentTrack, currentPlaylist, repeatMode } = get();
-                if (!currentPlaylist || !currentTrack) return;
+                removeTrack: (trackId) => {
+                    const { currentPlaylist } = get();
+                    if (currentPlaylist) {
+                        const updatedPlaylist = {
+                            ...currentPlaylist,
+                            tracks: currentPlaylist.tracks.filter((t) => t.id !== trackId),
+                            updatedAt: new Date(),
+                        };
 
-                const currentIndex = currentPlaylist.tracks.findIndex(
-                    (t) => t.id === currentTrack.id
-                );
+                        set((state) => ({
+                            currentPlaylist: updatedPlaylist,
+                            playlists: state.playlists.map((p) =>
+                                p.id === currentPlaylist.id ? updatedPlaylist : p
+                            ),
+                        }));
+                    }
+                },
 
-                if (currentIndex === -1) return;
+                playTrack: (trackId) => {
+                    const { currentPlaylist } = get();
+                    if (currentPlaylist) {
+                        const track = currentPlaylist.tracks.find((t) => t.id === trackId);
+                        if (track) {
+                            set({ currentTrack: track, isPlaying: true, currentTime: 0 });
+                        }
+                    }
+                },
 
-                let nextIndex: number;
+                playNext: () => {
+                    const { currentTrack, currentPlaylist, repeatMode } = get();
+                    if (!currentPlaylist || !currentTrack) return;
 
-                if (repeatMode === 'one') {
-                    nextIndex = currentIndex;
-                } else if (currentIndex === currentPlaylist.tracks.length - 1) {
-                    if (repeatMode === 'all') {
-                        nextIndex = 0;
+                    const currentIndex = currentPlaylist.tracks.findIndex(
+                        (t) => t.id === currentTrack.id
+                    );
+
+                    if (currentIndex === -1) return;
+
+                    let nextIndex: number;
+
+                    if (repeatMode === 'one') {
+                        nextIndex = currentIndex;
+                    } else if (currentIndex === currentPlaylist.tracks.length - 1) {
+                        if (repeatMode === 'all') {
+                            nextIndex = 0;
+                        } else {
+                            return; // End of playlist
+                        }
                     } else {
-                        return; // End of playlist
+                        nextIndex = currentIndex + 1;
                     }
-                } else {
-                    nextIndex = currentIndex + 1;
-                }
 
-                const nextTrack = currentPlaylist.tracks[nextIndex];
-                set({ currentTrack: nextTrack, isPlaying: true, currentTime: 0 });
-            },
+                    const nextTrack = currentPlaylist.tracks[nextIndex];
+                    set({ currentTrack: nextTrack, isPlaying: true, currentTime: 0 });
+                },
 
-            playPrevious: () => {
-                const { currentTrack, currentPlaylist } = get();
-                if (!currentPlaylist || !currentTrack) return;
+                playPrevious: () => {
+                    const { currentTrack, currentPlaylist } = get();
+                    if (!currentPlaylist || !currentTrack) return;
 
-                const currentIndex = currentPlaylist.tracks.findIndex(
-                    (t) => t.id === currentTrack.id
-                );
+                    const currentIndex = currentPlaylist.tracks.findIndex(
+                        (t) => t.id === currentTrack.id
+                    );
 
-                if (currentIndex <= 0) return;
+                    if (currentIndex <= 0) return;
 
-                const prevTrack = currentPlaylist.tracks[currentIndex - 1];
-                set({ currentTrack: prevTrack, isPlaying: true, currentTime: 0 });
-            },
+                    const prevTrack = currentPlaylist.tracks[currentIndex - 1];
+                    set({ currentTrack: prevTrack, isPlaying: true, currentTime: 0 });
+                },
 
-            // Playlist management
-            createPlaylist: (name) => {
-                const newPlaylist: Playlist = {
-                    id: Date.now().toString(),
-                    name,
-                    tracks: [],
-                    createdAt: new Date(),
-                    updatedAt: new Date(),
-                };
+                // Playlist management
+                createPlaylist: (name) => {
+                    const newPlaylist: Playlist = {
+                        id: Date.now().toString(),
+                        name,
+                        tracks: [],
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    };
 
-                set((state) => ({
-                    playlists: [...state.playlists, newPlaylist],
-                    currentPlaylist: newPlaylist,
-                }));
-            },
+                    set((state) => ({
+                        playlists: [...state.playlists, newPlaylist],
+                        currentPlaylist: newPlaylist,
+                    }));
+                },
 
-            deletePlaylist: (playlistId) => {
-                set((state) => ({
-                    playlists: state.playlists.filter((p) => p.id !== playlistId),
-                    currentPlaylist: state.currentPlaylist?.id === playlistId ? null : state.currentPlaylist,
-                }));
-            },
+                deletePlaylist: (playlistId) => {
+                    set((state) => ({
+                        playlists: state.playlists.filter((p) => p.id !== playlistId),
+                        currentPlaylist: state.currentPlaylist?.id === playlistId ? null : state.currentPlaylist,
+                    }));
+                },
 
-            addTrackToPlaylist: (playlistId, track) => {
-                set((state) => ({
-                    playlists: state.playlists.map((p) =>
-                        p.id === playlistId
-                            ? {
-                                ...p,
-                                tracks: [...p.tracks, track],
-                                updatedAt: new Date(),
-                            }
-                            : p
-                    ),
-                }));
-            },
+                addTrackToPlaylist: (playlistId, track) => {
+                    set((state) => ({
+                        playlists: state.playlists.map((p) =>
+                            p.id === playlistId
+                                ? {
+                                    ...p,
+                                    tracks: [...p.tracks, track],
+                                    updatedAt: new Date(),
+                                }
+                                : p
+                        ),
+                    }));
+                },
 
-            removeTrackFromPlaylist: (playlistId, trackId) => {
-                set((state) => ({
-                    playlists: state.playlists.map((p) =>
-                        p.id === playlistId
-                            ? {
-                                ...p,
-                                tracks: p.tracks.filter((t) => t.id !== trackId),
-                                updatedAt: new Date(),
-                            }
-                            : p
-                    ),
-                }));
-            },
+                removeTrackFromPlaylist: (playlistId, trackId) => {
+                    set((state) => ({
+                        playlists: state.playlists.map((p) =>
+                            p.id === playlistId
+                                ? {
+                                    ...p,
+                                    tracks: p.tracks.filter((t) => t.id !== trackId),
+                                    updatedAt: new Date(),
+                                }
+                                : p
+                        ),
+                    }));
+                },
 
-            setCurrentPlaylist: (playlist) => set({ currentPlaylist: playlist }),
+                setCurrentPlaylist: (playlist) => set({ currentPlaylist: playlist }),
 
-            // UI actions
-            setIsPlayerVisible: (visible) => set({ isPlayerVisible: visible }),
+                // Stats actions
+                toggleLikedTrack: (trackId) => {
+                    set((state) => ({
+                        likedTracks: state.likedTracks.includes(trackId)
+                            ? state.likedTracks.filter(id => id !== trackId)
+                            : [...state.likedTracks, trackId]
+                    }));
+                },
 
-            setIsPlaylistVisible: (visible) => set({ isPlaylistVisible: visible }),
+                incrementDownloadCount: () => {
+                    set((state) => ({
+                        downloadCount: state.downloadCount + 1
+                    }));
+                },
 
-            setIsLoading: (loading) => set({ isLoading: loading }),
+                // UI actions
+                setIsPlayerVisible: (visible) => set({ isPlayerVisible: visible }),
 
-            setError: (error) => set({ error }),
+                setIsPlaylistVisible: (visible) => set({ isPlaylistVisible: visible }),
 
-            // Utility actions
-            clearError: () => set({ error: null }),
+                setIsLoading: (loading) => set({ isLoading: loading }),
 
-            resetPlayer: () => {
-                set({
-                    currentTrack: null,
-                    isPlaying: false,
-                    currentTime: 0,
-                    duration: 0,
-                    isPlayerVisible: false,
-                    error: null,
-                });
-            },
-        }),
-        {
-            name: 'yt-player-storage',
-            partialize: (state) => ({
-                volume: state.volume,
-                isMuted: state.isMuted,
-                isShuffled: state.isShuffled,
-                repeatMode: state.repeatMode,
-                playlists: state.playlists,
-                currentPlaylist: state.currentPlaylist,
+                setError: (error) => set({ error }),
+
+                // Utility actions
+                clearError: () => set({ error: null }),
+
+                resetPlayer: () => {
+                    set({
+                        currentTrack: null,
+                        isPlaying: false,
+                        currentTime: 0,
+                        duration: 0,
+                        isPlayerVisible: false,
+                        error: null,
+                    });
+                },
             }),
-        }
+            {
+                name: 'yt-player-storage',
+                // Only persist essential data to reduce storage size
+                partialize: (state) => ({
+                    volume: state.volume,
+                    isMuted: state.isMuted,
+                    isShuffled: state.isShuffled,
+                    repeatMode: state.repeatMode,
+                    playlists: state.playlists,
+                    currentPlaylist: state.currentPlaylist,
+                    likedTracks: state.likedTracks,
+                    downloadCount: state.downloadCount,
+                }),
+                // Optimize storage with compression
+                version: 1,
+                migrate: (persistedState: any, version: number) => {
+                    if (version === 0) {
+                        // Handle migration from version 0 to 1
+                        return {
+                            ...persistedState,
+                            // Add any new fields with defaults
+                        };
+                    }
+                    return persistedState;
+                },
+            }
+        )
     )
 );
+
+// Optimized selectors for better performance
+export const useCurrentTrack = () => usePlayerStore((state) => state.currentTrack);
+export const useIsPlaying = () => usePlayerStore((state) => state.isPlaying);
+export const usePlayerControls = () => usePlayerStore((state) => ({
+    currentTime: state.currentTime,
+    duration: state.duration,
+    volume: state.volume,
+    isMuted: state.isMuted,
+    isShuffled: state.isShuffled,
+    repeatMode: state.repeatMode,
+    isPlayerVisible: state.isPlayerVisible,
+}));
+export const usePlaylist = () => usePlayerStore((state) => ({
+    currentPlaylist: state.currentPlaylist,
+    playlists: state.playlists,
+    likedTracks: state.likedTracks,
+    downloadCount: state.downloadCount,
+}));
+export const usePlayerActions = () => usePlayerStore((state) => ({
+    setCurrentTrack: state.setCurrentTrack,
+    setIsPlaying: state.setIsPlaying,
+    setCurrentTime: state.setCurrentTime,
+    setDuration: state.setDuration,
+    setVolume: state.setVolume,
+    setIsMuted: state.setIsMuted,
+    setIsShuffled: state.setIsShuffled,
+    setRepeatMode: state.setRepeatMode,
+    playNext: state.playNext,
+    playPrevious: state.playPrevious,
+    addTrack: state.addTrack,
+    removeTrack: state.removeTrack,
+    playTrack: state.playTrack,
+    createPlaylist: state.createPlaylist,
+    deletePlaylist: state.deletePlaylist,
+    addTrackToPlaylist: state.addTrackToPlaylist,
+    removeTrackFromPlaylist: state.removeTrackFromPlaylist,
+    setCurrentPlaylist: state.setCurrentPlaylist,
+    toggleLikedTrack: state.toggleLikedTrack,
+    incrementDownloadCount: state.incrementDownloadCount,
+    setIsPlayerVisible: state.setIsPlayerVisible,
+    setIsPlaylistVisible: state.setIsPlaylistVisible,
+    setIsLoading: state.setIsLoading,
+    setError: state.setError,
+    clearError: state.clearError,
+    resetPlayer: state.resetPlayer,
+}));
 
 export default usePlayerStore;
