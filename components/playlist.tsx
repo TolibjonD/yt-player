@@ -12,13 +12,14 @@ import {
     Heart,
     Download,
     Share2,
-    Edit3,
     Plus,
     List,
-    Grid3X3
+    Grid3X3,
+    X
 } from "lucide-react";
-import usePlayerStore, { Track } from "@/store/player-store";
-import { usePlayerActions } from "@/store/player-store";
+import { Track } from "@/store/playerSlice";
+import { useAppSelector, useAppDispatch } from "@/store/hooks";
+import { removeTrack, setCurrentTrack, setIsPlaying, toggleLikedTrack, incrementDownloadCount } from "@/store/playerSlice";
 import { cn } from "@/lib/utils";
 import { toast } from "react-hot-toast";
 
@@ -36,19 +37,15 @@ export default function Playlist({
     const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
     const [selectedTracks, setSelectedTracks] = useState<Set<string>>(new Set());
     const [showOptions, setShowOptions] = useState<string | null>(null);
+    const [showMobileMenu, setShowMobileMenu] = useState<string | null>(null);
     const menuRef = useRef<HTMLDivElement>(null);
 
-    const {
-        currentPlaylist,
-        currentTrack,
-        isPlaying,
-        playTrack,
-        removeTrack,
-        setCurrentTrack,
-        setIsPlaying,
-    } = usePlayerStore();
-
-    const { toggleLikedTrack, incrementDownloadCount } = usePlayerActions();
+    // Use store selectors
+    // Redux selectors and dispatch
+    const dispatch = useAppDispatch();
+    const currentPlaylist = useAppSelector((state) => state.player.currentPlaylist);
+    const currentTrack = useAppSelector((state) => state.player.currentTrack);
+    const isPlaying = useAppSelector((state) => state.player.isPlaying);
 
     // Close menu when clicking outside
     useEffect(() => {
@@ -90,10 +87,10 @@ export default function Playlist({
 
     const handleTrackClick = (track: Track) => {
         if (currentTrack?.id === track.id) {
-            setIsPlaying(!isPlaying);
+            dispatch(setIsPlaying(!isPlaying));
         } else {
-            setCurrentTrack(track);
-            setIsPlaying(true);
+            dispatch(setCurrentTrack(track));
+            dispatch(setIsPlaying(true));
         }
     };
 
@@ -108,20 +105,20 @@ export default function Playlist({
     };
 
     const handleRemoveTrack = (trackId: string) => {
-        removeTrack(trackId);
+        dispatch(removeTrack(trackId));
         setShowOptions(null);
     };
 
     const handleTrackLike = (trackId: string, e: React.MouseEvent) => {
         e.stopPropagation();
-        toggleLikedTrack(trackId);
+        dispatch(toggleLikedTrack(trackId));
         onTrackLike?.(trackId);
         toast.success(likedTracks.includes(trackId) ? 'Removed from liked tracks' : 'Added to liked tracks');
     };
 
     const handleTrackDownload = (track: Track, e: React.MouseEvent) => {
         e.stopPropagation();
-        incrementDownloadCount();
+        dispatch(incrementDownloadCount());
         onTrackDownload?.();
 
         // Create a temporary link to download the audio
@@ -138,7 +135,7 @@ export default function Playlist({
 
     const handleRemoveSelected = () => {
         selectedTracks.forEach(trackId => {
-            removeTrack(trackId);
+            dispatch(removeTrack(trackId));
         });
         setSelectedTracks(new Set());
         toast.success(`Removed ${selectedTracks.size} tracks`);
@@ -153,23 +150,14 @@ export default function Playlist({
     };
 
     return (
-        <motion.div
-            className="h-full flex flex-col"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.3 }}
-        >
-            {/* Playlist Header */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-                <div className="flex items-center space-x-3">
-                    <div className="w-12 h-12 bg-gradient-to-br from-primary/20 to-primary/40 rounded-lg flex items-center justify-center">
-                        <Music className="h-6 w-6 text-primary" />
-                    </div>
+        <div className="h-full flex flex-col">
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 border-b border-white/20 dark:border-white/10 space-y-2 sm:space-y-0">
+                <div className="flex items-center space-x-4">
                     <div>
-                        <h2 className="text-lg font-semibold">{currentPlaylist.name}</h2>
-                        <p className="text-sm text-muted-foreground">
-                            {currentPlaylist.tracks.length} track{currentPlaylist.tracks.length !== 1 ? 's' : ''} •
-                            Created {new Date(currentPlaylist.createdAt).toLocaleDateString()}
+                        <h2 className="text-base sm:text-lg font-semibold text-gradient">{currentPlaylist.name}</h2>
+                        <p className="text-xs sm:text-sm text-muted-foreground">
+                            {currentPlaylist.tracks.length} tracks • {formatDuration(currentPlaylist.tracks.reduce((total: number, track: Track) => total + track.duration, 0))}
                         </p>
                     </div>
                 </div>
@@ -181,7 +169,7 @@ export default function Playlist({
                             onClick={() => setViewMode('list')}
                             className={cn(
                                 "p-2 rounded-md transition-colors",
-                                viewMode === 'list' ? "bg-background text-foreground" : "text-muted-foreground hover:text-foreground"
+                                viewMode === 'list' ? "bg-white/10 text-foreground" : "text-muted-foreground hover:text-foreground"
                             )}
                         >
                             <List className="h-4 w-4" />
@@ -190,18 +178,18 @@ export default function Playlist({
                             onClick={() => setViewMode('grid')}
                             className={cn(
                                 "p-2 rounded-md transition-colors",
-                                viewMode === 'grid' ? "bg-background text-foreground" : "text-muted-foreground hover:text-foreground"
+                                viewMode === 'grid' ? "bg-white/10 text-foreground" : "text-muted-foreground hover:text-foreground"
                             )}
                         >
                             <Grid3X3 className="h-4 w-4" />
                         </button>
                     </div>
 
-                    {/* Action Buttons */}
+                    {/* Remove Selected Button */}
                     {selectedTracks.size > 0 && (
                         <motion.button
                             onClick={handleRemoveSelected}
-                            className="btn-secondary px-3 py-2 text-sm flex items-center space-x-1"
+                            className="flex items-center space-x-2 px-3 py-2 bg-red-500/10 text-red-500 rounded-lg hover:bg-red-500/20 transition-colors"
                             initial={{ opacity: 0, scale: 0.8 }}
                             animate={{ opacity: 1, scale: 1 }}
                         >
@@ -237,7 +225,7 @@ export default function Playlist({
                             onReorder={() => { }}
                             className="space-y-1 p-2"
                         >
-                            {currentPlaylist.tracks.map((track, index) => (
+                            {currentPlaylist.tracks.map((track: Track, index: number) => (
                                 <Reorder.Item
                                     key={track.id}
                                     value={track}
@@ -245,7 +233,7 @@ export default function Playlist({
                                 >
                                     <motion.div
                                         className={cn(
-                                            "group flex items-center space-x-3 p-3 rounded-lg transition-all duration-200 cursor-pointer",
+                                            "group flex items-center space-x-2 sm:space-x-3 p-2 sm:p-3 rounded-lg transition-all duration-200 cursor-pointer",
                                             "hover:bg-muted/50",
                                             currentTrack?.id === track.id && "bg-primary/10 border border-primary/20",
                                             selectedTracks.has(track.id) && "bg-primary/5 border border-primary/10"
@@ -266,12 +254,12 @@ export default function Playlist({
                                         />
 
                                         {/* Track Number */}
-                                        <div className="w-8 text-center text-sm text-muted-foreground">
+                                        <div className="w-6 sm:w-8 text-center text-xs sm:text-sm text-muted-foreground">
                                             {index + 1}
                                         </div>
 
                                         {/* Thumbnail */}
-                                        <div className="relative w-12 h-12 rounded-lg overflow-hidden bg-muted flex-shrink-0">
+                                        <div className="relative w-10 h-10 sm:w-12 sm:h-12 rounded-lg overflow-hidden bg-muted flex-shrink-0">
                                             {track.thumbnail ? (
                                                 <img
                                                     src={track.thumbnail}
@@ -298,16 +286,16 @@ export default function Playlist({
 
                                         {/* Track Info */}
                                         <div className="flex-1 min-w-0">
-                                            <h4 className="font-medium text-foreground truncate">
+                                            <h4 className="font-medium text-foreground truncate text-sm sm:text-base">
                                                 {track.title}
                                             </h4>
-                                            <p className="text-sm text-muted-foreground truncate">
+                                            <p className="text-xs sm:text-sm text-muted-foreground truncate">
                                                 {track.artist || "Unknown Artist"}
                                             </p>
                                         </div>
 
                                         {/* Duration */}
-                                        <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                                        <div className="hidden sm:flex items-center space-x-2 text-sm text-muted-foreground">
                                             <Clock className="h-4 w-4" />
                                             <span>{formatDuration(track.duration)}</span>
                                         </div>
@@ -339,7 +327,11 @@ export default function Playlist({
                                             <button
                                                 onClick={(e) => {
                                                     e.stopPropagation();
-                                                    setShowOptions(showOptions === track.id ? null : track.id);
+                                                    if (window.innerWidth < 640) {
+                                                        setShowMobileMenu(track.id);
+                                                    } else {
+                                                        setShowOptions(showOptions === track.id ? null : track.id);
+                                                    }
                                                 }}
                                                 className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                                             >
@@ -351,11 +343,16 @@ export default function Playlist({
                                         <AnimatePresence>
                                             {showOptions === track.id && (
                                                 <motion.div
-                                                    className="absolute right-0 top-full mt-1 w-48 glass-effect rounded-lg shadow-lg z-50"
+                                                    className="absolute right-0 top-full mt-1 w-48 glass-effect rounded-lg shadow-lg z-[100] border border-white/10"
                                                     initial={{ opacity: 0, scale: 0.95, y: -10 }}
                                                     animate={{ opacity: 1, scale: 1, y: 0 }}
                                                     exit={{ opacity: 0, scale: 0.95, y: -10 }}
                                                     ref={menuRef}
+                                                    style={{
+                                                        transformOrigin: 'top right',
+                                                        maxHeight: '200px',
+                                                        overflowY: 'auto'
+                                                    }}
                                                 >
                                                     <div className="p-1">
                                                         <button
@@ -431,60 +428,71 @@ export default function Playlist({
                 ) : (
                     /* Grid View */
                     <div className="h-full overflow-y-auto custom-scrollbar p-4">
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                            {currentPlaylist.tracks.map((track) => (
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                            {currentPlaylist.tracks.map((track: Track) => (
                                 <motion.div
                                     key={track.id}
-                                    className="group relative"
-                                    whileHover={{ scale: 1.02 }}
-                                    whileTap={{ scale: 0.98 }}
+                                    className="group relative bg-muted/30 rounded-lg overflow-hidden cursor-pointer"
+                                    whileHover={{ scale: 1.05 }}
+                                    whileTap={{ scale: 0.95 }}
+                                    onClick={() => handleTrackClick(track)}
                                 >
-                                    <div
-                                        className={cn(
-                                            "relative rounded-lg overflow-hidden cursor-pointer",
-                                            currentTrack?.id === track.id && "ring-2 ring-primary"
-                                        )}
-                                        onClick={() => handleTrackClick(track)}
-                                    >
-                                        {/* Thumbnail */}
-                                        <div className="aspect-square bg-muted">
-                                            {track.thumbnail ? (
-                                                <img
-                                                    src={track.thumbnail}
-                                                    alt={track.title}
-                                                    className="w-full h-full object-cover"
-                                                />
-                                            ) : (
-                                                <div className="w-full h-full bg-gradient-to-br from-primary/20 to-primary/40 flex items-center justify-center">
-                                                    <Music className="h-12 w-12 text-primary" />
-                                                </div>
-                                            )}
-
-                                            {/* Overlay */}
-                                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
-                                                <motion.button
-                                                    className="w-12 h-12 rounded-full bg-white/90 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                                                    whileHover={{ scale: 1.1 }}
-                                                    whileTap={{ scale: 0.9 }}
-                                                >
-                                                    {isTrackPlaying(track) ? (
-                                                        <Pause className="h-5 w-5" />
-                                                    ) : (
-                                                        <Play className="h-5 w-5 ml-1" />
-                                                    )}
-                                                </motion.button>
+                                    {/* Thumbnail */}
+                                    <div className="relative aspect-square">
+                                        {track.thumbnail ? (
+                                            <img
+                                                src={track.thumbnail}
+                                                alt={track.title}
+                                                className="w-full h-full object-cover"
+                                            />
+                                        ) : (
+                                            <div className="w-full h-full bg-gradient-to-br from-primary/20 to-primary/40 flex items-center justify-center">
+                                                <Music className="h-12 w-12 text-primary" />
                                             </div>
-                                        </div>
+                                        )}
 
-                                        {/* Track Info */}
-                                        <div className="p-3">
-                                            <h4 className="font-medium text-sm text-foreground truncate">
-                                                {track.title}
-                                            </h4>
-                                            <p className="text-xs text-muted-foreground truncate">
-                                                {track.artist || "Unknown Artist"}
-                                            </p>
+                                        {/* Play/Pause Overlay */}
+                                        {isTrackPlaying(track) && (
+                                            <motion.div
+                                                className="absolute inset-0 bg-black/40 flex items-center justify-center"
+                                                initial={{ opacity: 0 }}
+                                                animate={{ opacity: 1 }}
+                                            >
+                                                <Pause className="h-8 w-8 text-white" />
+                                            </motion.div>
+                                        )}
+
+                                        {/* Actions Overlay */}
+                                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center space-x-2">
+                                            <button
+                                                onClick={(e) => handleTrackLike(track.id, e)}
+                                                className={cn(
+                                                    "p-2 rounded-full transition-colors",
+                                                    isTrackLiked(track.id)
+                                                        ? "bg-red-500 text-white"
+                                                        : "bg-white/20 text-white hover:bg-white/30"
+                                                )}
+                                            >
+                                                <Heart className={cn("h-4 w-4", isTrackLiked(track.id) && "fill-current")} />
+                                            </button>
+
+                                            <button
+                                                onClick={(e) => handleTrackDownload(track, e)}
+                                                className="p-2 rounded-full bg-white/20 text-white hover:bg-white/30 transition-colors"
+                                            >
+                                                <Download className="h-4 w-4" />
+                                            </button>
                                         </div>
+                                    </div>
+
+                                    {/* Track Info */}
+                                    <div className="p-3">
+                                        <h4 className="font-medium text-foreground text-sm truncate">
+                                            {track.title}
+                                        </h4>
+                                        <p className="text-xs text-muted-foreground truncate">
+                                            {track.artist || "Unknown Artist"}
+                                        </p>
                                     </div>
                                 </motion.div>
                             ))}
@@ -492,6 +500,96 @@ export default function Playlist({
                     </div>
                 )}
             </div>
-        </motion.div>
+
+            {/* Mobile Context Menu */}
+            <AnimatePresence>
+                {showMobileMenu && (
+                    <motion.div
+                        className="fixed inset-0 bg-black/50 z-[200] flex items-end"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        onClick={() => setShowMobileMenu(null)}
+                    >
+                        <motion.div
+                            className="w-full bg-white/10 backdrop-blur-lg rounded-t-lg p-4"
+                            initial={{ y: 300 }}
+                            animate={{ y: 0 }}
+                            exit={{ y: 300 }}
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="text-lg font-semibold">Track Options</h3>
+                                <button
+                                    onClick={() => setShowMobileMenu(null)}
+                                    className="p-2 rounded-full bg-white/10"
+                                >
+                                    <X className="h-5 w-5" />
+                                </button>
+                            </div>
+
+                            {showMobileMenu && currentPlaylist.tracks.find((t: Track) => t.id === showMobileMenu) && (
+                                <div className="space-y-2">
+                                    {(() => {
+                                        const track = currentPlaylist.tracks.find((t: Track) => t.id === showMobileMenu)!;
+                                        return (
+                                            <>
+                                                <button
+                                                    onClick={() => {
+                                                        handleTrackClick(track);
+                                                        setShowMobileMenu(null);
+                                                    }}
+                                                    className="w-full flex items-center space-x-3 p-3 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
+                                                >
+                                                    {isTrackPlaying(track) ? (
+                                                        <Pause className="h-5 w-5" />
+                                                    ) : (
+                                                        <Play className="h-5 w-5" />
+                                                    )}
+                                                    <span>{isTrackPlaying(track) ? 'Pause' : 'Play'}</span>
+                                                </button>
+
+                                                <button
+                                                    onClick={(e) => {
+                                                        handleTrackLike(track.id, e);
+                                                        setShowMobileMenu(null);
+                                                    }}
+                                                    className="w-full flex items-center space-x-3 p-3 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
+                                                >
+                                                    <Heart className={cn("h-5 w-5", isTrackLiked(track.id) && "fill-current text-red-500")} />
+                                                    <span>{isTrackLiked(track.id) ? 'Liked' : 'Like'}</span>
+                                                </button>
+
+                                                <button
+                                                    onClick={(e) => {
+                                                        handleTrackDownload(track, e);
+                                                        setShowMobileMenu(null);
+                                                    }}
+                                                    className="w-full flex items-center space-x-3 p-3 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
+                                                >
+                                                    <Download className="h-5 w-5" />
+                                                    <span>Download</span>
+                                                </button>
+
+                                                <button
+                                                    onClick={() => {
+                                                        handleRemoveTrack(track.id);
+                                                        setShowMobileMenu(null);
+                                                    }}
+                                                    className="w-full flex items-center space-x-3 p-3 rounded-lg bg-red-500/10 hover:bg-red-500/20 transition-colors text-red-500"
+                                                >
+                                                    <Trash2 className="h-5 w-5" />
+                                                    <span>Remove</span>
+                                                </button>
+                                            </>
+                                        );
+                                    })()}
+                                </div>
+                            )}
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </div>
     );
 }

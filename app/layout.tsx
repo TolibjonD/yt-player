@@ -1,8 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import { ThemeProvider } from "@/components/theme-provider";
-import { Toaster } from "react-hot-toast";
+import { ClientProviders } from "@/components/client-providers";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -105,13 +104,11 @@ export default function RootLayout({
         <link rel="dns-prefetch" href="//www.youtube.com" />
         <link rel="dns-prefetch" href="//img.youtube.com" />
 
-        {/* Preload critical CSS */}
-        <link rel="preload" href="/globals.css" as="style" />
+
 
         {/* Favicon */}
         <link rel="icon" href="/favicon.ico" sizes="any" />
         <link rel="icon" href="/icon.svg" type="image/svg+xml" />
-        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <link rel="manifest" href="/manifest.json" />
 
         {/* Structured Data */}
@@ -140,30 +137,9 @@ export default function RootLayout({
         />
       </head>
       <body className={`${inter.className} antialiased`}>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="dark"
-          enableSystem
-          disableTransitionOnChange
-        >
+        <ClientProviders>
           {children}
-          <Toaster
-            position="bottom-right"
-            toastOptions={{
-              duration: 4000,
-              style: {
-                background: 'rgba(255, 255, 255, 0.1)',
-                color: 'white',
-                border: '1px solid rgba(255, 255, 255, 0.2)',
-                backdropFilter: 'blur(20px)',
-                borderRadius: '12px',
-                padding: '16px',
-                fontSize: '14px',
-                fontWeight: '500',
-              },
-            }}
-          />
-        </ThemeProvider>
+        </ClientProviders>
       </body>
     </html>
   );

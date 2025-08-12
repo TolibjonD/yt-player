@@ -4,11 +4,21 @@ import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTheme } from "next-themes";
 import {
-    Sun, Moon, Music, Plus, Settings, Menu, X, Play, Pause,
-    SkipBack, SkipForward, Volume2, VolumeX, Shuffle, Repeat, Repeat1,
+    Sun, Moon, Music, Plus, Menu, X, Play, Pause,
+    SkipBack, SkipForward, Shuffle, Repeat, Repeat1,
     ChevronDown, Check
 } from "lucide-react";
-import usePlayerStore from "@/store/player-store";
+import { useAppSelector, useAppDispatch } from "@/store/hooks";
+import {
+    type Playlist,
+    setIsPlaying,
+    setIsShuffled,
+    setRepeatMode,
+    playNext,
+    playPrevious,
+    createPlaylist,
+    setCurrentPlaylist
+} from "@/store/playerSlice";
 import { cn } from "@/lib/utils";
 
 // Modern Dropdown Component
@@ -17,9 +27,9 @@ function PlaylistDropdown({
     currentPlaylist,
     onSelect
 }: {
-    playlists: any[],
-    currentPlaylist: any,
-    onSelect: (playlist: any) => void
+    playlists: Playlist[],
+    currentPlaylist: Playlist | null,
+    onSelect: (playlist: Playlist | null) => void
 }) {
     const [isOpen, setIsOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
@@ -112,26 +122,19 @@ export default function Header() {
         setMounted(true);
     }, []);
 
-    const {
-        currentTrack,
-        isPlaying,
-        isShuffled,
-        repeatMode,
-        currentPlaylist,
-        playlists,
-        setIsPlaying,
-        setIsShuffled,
-        setRepeatMode,
-        playNext,
-        playPrevious,
-        createPlaylist,
-        setCurrentPlaylist,
-        isPlayerVisible,
-    } = usePlayerStore();
+    // Use Redux selectors and dispatch
+    const dispatch = useAppDispatch();
+    const currentTrack = useAppSelector((state) => state.player.currentTrack);
+    const isPlaying = useAppSelector((state) => state.player.isPlaying);
+    const isShuffled = useAppSelector((state) => state.player.isShuffled);
+    const repeatMode = useAppSelector((state) => state.player.repeatMode);
+    const currentPlaylist = useAppSelector((state) => state.player.currentPlaylist);
+    const playlists = useAppSelector((state) => state.player.playlists);
+    const isPlayerVisible = useAppSelector((state) => state.player.isPlayerVisible);
 
     const handleCreatePlaylist = () => {
         if (newPlaylistName.trim()) {
-            createPlaylist(newPlaylistName.trim());
+            dispatch(createPlaylist(newPlaylistName.trim()));
             setNewPlaylistName("");
             setShowNewPlaylistDialog(false);
         }
@@ -141,7 +144,7 @@ export default function Header() {
         const modes: Array<'none' | 'one' | 'all'> = ['none', 'one', 'all'];
         const currentIndex = modes.indexOf(repeatMode);
         const nextIndex = (currentIndex + 1) % modes.length;
-        setRepeatMode(modes[nextIndex]);
+        dispatch(setRepeatMode(modes[nextIndex]));
     };
 
     return (
@@ -191,14 +194,14 @@ export default function Header() {
                                 transition={{ duration: 0.3 }}
                             >
                                 <button
-                                    onClick={playPrevious}
+                                    onClick={() => dispatch(playPrevious())}
                                     className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-white/10 transition-colors"
                                 >
                                     <SkipBack className="h-4 w-4" />
                                 </button>
 
                                 <motion.button
-                                    onClick={() => setIsPlaying(!isPlaying)}
+                                    onClick={() => dispatch(setIsPlaying(!isPlaying))}
                                     className="p-2 rounded-lg bg-gradient-to-r from-rose-500 to-orange-500 text-white hover:shadow-lg transition-all duration-300"
                                     whileHover={{ scale: 1.05 }}
                                     whileTap={{ scale: 0.95 }}
@@ -211,7 +214,7 @@ export default function Header() {
                                 </motion.button>
 
                                 <button
-                                    onClick={playNext}
+                                    onClick={() => dispatch(playNext())}
                                     className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-white/10 transition-colors"
                                 >
                                     <SkipForward className="h-4 w-4" />
@@ -315,7 +318,7 @@ export default function Header() {
                                 {isPlayerVisible && currentTrack && (
                                     <div className="flex items-center justify-center space-x-2">
                                         <button
-                                            onClick={playPrevious}
+                                            onClick={() => dispatch(playPrevious())}
                                             className="p-2 rounded-lg text-muted-foreground hover:text-foreground transition-colors hover:bg-white/10"
                                         >
                                             <SkipBack className="h-5 w-5" />
@@ -335,7 +338,7 @@ export default function Header() {
                                         </motion.button>
 
                                         <button
-                                            onClick={playNext}
+                                            onClick={() => dispatch(playNext())}
                                             className="p-2 rounded-lg text-muted-foreground hover:text-foreground transition-colors hover:bg-white/10"
                                         >
                                             <SkipForward className="h-5 w-5" />

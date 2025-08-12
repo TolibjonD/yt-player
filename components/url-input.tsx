@@ -1,35 +1,33 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
     Youtube,
-    Music,
     Loader2,
     AlertCircle,
     CheckCircle,
-    Play,
     Plus,
     Sparkles
 } from "lucide-react";
 import toast from "react-hot-toast";
-import usePlayerStore, { Track } from "@/store/player-store";
+import { useAppSelector, useAppDispatch } from "@/store/hooks";
+import { addTrack, setCurrentTrackAndPlay, createPlaylist, setError, clearError } from "@/store/playerSlice";
 import { cn } from "@/lib/utils";
+import { ERROR_MESSAGES, HTTP_STATUS } from "@/lib/constants";
 
 export default function UrlInput() {
     const [url, setUrl] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const [isValid, setIsValid] = useState<boolean | null>(null);
 
-    const {
-        currentPlaylist,
-        addTrack,
-        createPlaylist,
-        setCurrentPlaylist,
-        playlists,
-        setError,
-        clearError
-    } = usePlayerStore();
+    // Use store selectors
+    // Redux selectors and dispatch
+    const dispatch = useAppDispatch();
+    const currentPlaylist = useAppSelector((state) => state.player.currentPlaylist);
+    const playlists = useAppSelector((state) => state.player.playlists);
+
+
 
     const validateYouTubeUrl = (url: string): boolean => {
         const patterns = [
@@ -69,101 +67,118 @@ export default function UrlInput() {
         e.preventDefault();
 
         if (!url.trim()) {
-            toast.error("Please enter a YouTube URL");
+            toast.error(ERROR_MESSAGES.EMPTY_URL);
             return;
         }
 
         if (!validateYouTubeUrl(url)) {
-            toast.error("Please enter a valid YouTube URL");
+            toast.error(ERROR_MESSAGES.INVALID_URL);
             return;
         }
 
         const videoId = extractVideoId(url);
         if (!videoId) {
-            toast.error("Could not extract video ID from URL");
+            toast.error(ERROR_MESSAGES.VIDEO_ID_EXTRACTION_FAILED);
             return;
         }
 
         setIsLoading(true);
-        setError(null);
+        dispatch(setError(null));
 
         try {
-            const response = await fetch(`/api/youtube?videoId=${videoId}`);
+            const response = await fetch(`/api/youtube?videoId=${videoId}`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            });
 
             const data = await response.json();
 
             if (!response.ok || !data.success) {
                 // Handle rate limiting
-                if (response.status === 429) {
-                    const retryAfter = data.retryAfter || 60;
-                    throw new Error(`Rate limit exceeded. Please wait ${retryAfter} seconds before trying again.`);
+                if (response.status === HTTP_STATUS.RATE_LIMITED) {
+                    throw new Error(data.error || ERROR_MESSAGES.RATE_LIMIT_EXCEEDED);
                 }
 
-                // Handle service unavailable (bot detection, etc.)
-                if (response.status === 503) {
-                    const retryAfter = data.retryAfter || 300;
-                    const suggestion = data.suggestion || 'Please try again later.';
-                    throw new Error(`${data.error} ${suggestion}`);
+                // Handle video not found
+                if (response.status === HTTP_STATUS.NOT_FOUND) {
+                    throw new Error(data.error || ERROR_MESSAGES.VIDEO_NOT_FOUND);
+                }
+
+                // Handle forbidden (private/age-restricted)
+                if (response.status === HTTP_STATUS.FORBIDDEN) {
+                    throw new Error(data.error || ERROR_MESSAGES.VIDEO_PRIVATE);
+                }
+
+                // Handle bad request
+                if (response.status === HTTP_STATUS.BAD_REQUEST) {
+                    throw new Error(data.error || ERROR_MESSAGES.VIDEO_NO_AUDIO);
                 }
 
                 // Handle other errors
-                throw new Error(data.error || data.suggestion || "Failed to process video");
+                throw new Error(data.error || data.suggestion || ERROR_MESSAGES.PROCESSING_FAILED);
             }
 
-            const track: Track = {
+            const track = {
                 id: videoId,
-                title: data.title,
-                artist: data.author || "Unknown Artist",
-                duration: data.duration || 0,
-                url: data.audioUrl,
-                thumbnail: data.thumbnail,
+                title: data.data.title,
+                artist: data.data.artist || "Unknown Artist",
+                duration: data.data.duration || 0,
+                url: data.data.url,
+                thumbnail: data.data.thumbnail,
                 youtubeUrl: url,
-                addedAt: new Date(),
+                addedAt: new Date().toISOString(),
             };
 
             // If no current playlist, create one
             if (!currentPlaylist) {
                 const newPlaylistName = `Playlist ${playlists.length + 1}`;
-                createPlaylist(newPlaylistName);
+                dispatch(createPlaylist(newPlaylistName));
                 toast.success(`Created new playlist: ${newPlaylistName}`);
             }
 
             // Add track to current playlist
-            addTrack(track);
+            dispatch(addTrack(track));
 
-            toast.success(`Added "${track.title}" to playlist`);
+            // Set as current track and start playing
+            dispatch(setCurrentTrackAndPlay(track));
+
+            toast.success(`Added "${track.title}" to playlist and started playing`);
             setUrl("");
             setIsValid(null);
 
         } catch (error) {
             console.error("Error processing video:", error);
-            let errorMessage = "Failed to process video";
+            let errorMessage: string = ERROR_MESSAGES.PROCESSING_FAILED;
 
             if (error instanceof Error) {
                 // Handle specific error types
                 if (error.message.includes("Rate limit exceeded")) {
                     errorMessage = error.message;
                 } else if (error.message.includes("YouTube is currently blocking")) {
-                    errorMessage = error.message;
+                    errorMessage = ERROR_MESSAGES.YOUTUBE_BLOCKING;
                 } else if (error.message.includes("video unavailable")) {
-                    errorMessage = "This video is not available or has been removed.";
+                    errorMessage = ERROR_MESSAGES.VIDEO_NOT_FOUND;
                 } else if (error.message.includes("private video")) {
-                    errorMessage = "This video is private and cannot be accessed.";
+                    errorMessage = ERROR_MESSAGES.VIDEO_PRIVATE;
                 } else if (error.message.includes("age-restricted")) {
-                    errorMessage = "This video is age-restricted and cannot be processed.";
+                    errorMessage = ERROR_MESSAGES.VIDEO_PRIVATE;
                 } else if (error.message.includes("no audio format available")) {
-                    errorMessage = "No audio format is available for this video.";
+                    errorMessage = ERROR_MESSAGES.NO_AUDIO_FORMAT;
                 } else {
                     errorMessage = error.message;
                 }
             }
 
-            setError(errorMessage);
+            dispatch(setError(errorMessage));
             toast.error(errorMessage);
         } finally {
             setIsLoading(false);
         }
     };
+
+
 
     return (
         <motion.div
@@ -220,27 +235,26 @@ export default function UrlInput() {
                     </div>
                 </div>
 
-                {/* Submit Button */}
                 <motion.button
                     type="submit"
                     disabled={isLoading || !isValid}
                     className={cn(
                         "w-full py-3 px-4 rounded-lg font-medium transition-all duration-300 flex items-center justify-center space-x-2",
-                        isLoading || !isValid
-                            ? "bg-muted text-muted-foreground cursor-not-allowed"
-                            : "btn-primary shining-effect"
+                        isValid && !isLoading
+                            ? "bg-gradient-to-r from-rose-500 to-orange-500 text-white hover:from-rose-600 hover:to-orange-600 transform hover:scale-105"
+                            : "bg-muted text-muted-foreground cursor-not-allowed"
                     )}
-                    whileHover={!isLoading && isValid ? { scale: 1.02 } : {}}
-                    whileTap={!isLoading && isValid ? { scale: 0.98 } : {}}
+                    whileHover={isValid && !isLoading ? { scale: 1.02 } : {}}
+                    whileTap={isValid && !isLoading ? { scale: 0.98 } : {}}
                 >
                     {isLoading ? (
                         <>
                             <Loader2 className="h-5 w-5 animate-spin" />
-                            <span>Converting...</span>
+                            <span>Processing...</span>
                         </>
                     ) : (
                         <>
-                            <Play className="h-5 w-5" />
+                            <Plus className="h-5 w-5" />
                             <span>Add to Playlist</span>
                         </>
                     )}
@@ -248,37 +262,18 @@ export default function UrlInput() {
             </form>
 
             {/* Features */}
-            <div className="mt-6 pt-6 border-t border-white/20 dark:border-white/10">
-                <h3 className="text-sm font-medium mb-3 text-gradient">Features</h3>
-                <div className="space-y-2">
-                    <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-                        <Sparkles className="h-4 w-4 text-rose-500" />
-                        <span>High Quality MP3 Conversion</span>
-                    </div>
-                    <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-                        <Sparkles className="h-4 w-4 text-orange-500" />
-                        <span>Instant Processing</span>
-                    </div>
-                    <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-                        <Sparkles className="h-4 w-4 text-purple-500" />
-                        <span>Automatic Playlist Creation</span>
-                    </div>
+            <div className="mt-6 space-y-3">
+                <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                    <Sparkles className="h-4 w-4 text-rose-500" />
+                    <span>High Quality Audio</span>
                 </div>
-            </div>
-
-            {/* Quick Stats */}
-            <div className="mt-6 pt-6 border-t border-white/20 dark:border-white/10">
-                <div className="grid grid-cols-2 gap-4 text-center">
-                    <div>
-                        <div className="text-lg font-bold text-gradient">{playlists.length}</div>
-                        <div className="text-xs text-muted-foreground">Playlists</div>
-                    </div>
-                    <div>
-                        <div className="text-lg font-bold text-gradient">
-                            {playlists.reduce((total, playlist) => total + playlist.tracks.length, 0)}
-                        </div>
-                        <div className="text-xs text-muted-foreground">Total Tracks</div>
-                    </div>
+                <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                    <Sparkles className="h-4 w-4 text-orange-500" />
+                    <span>Instant Conversion</span>
+                </div>
+                <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                    <Sparkles className="h-4 w-4 text-purple-500" />
+                    <span>Smart Playlists</span>
                 </div>
             </div>
         </motion.div>

@@ -6,6 +6,13 @@ const nextConfig: NextConfig = {
     optimizePackageImports: ['lucide-react', 'framer-motion'],
   },
 
+  // Allow cross-origin requests in development
+  allowedDevOrigins: [
+    '192.168.11.39',
+    'localhost',
+    '127.0.0.1',
+  ],
+
   // Turbopack configuration (stable in Next.js 15)
   turbopack: {
     rules: {
