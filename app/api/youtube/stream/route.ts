@@ -125,7 +125,7 @@ export async function HEAD(request: NextRequest) {
 
     try {
         const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
-        const info = await ytdl.getInfo(videoUrl);
+        await ytdl.getInfo(videoUrl);
 
         const headers = new Headers();
         headers.set('Content-Type', 'audio/mpeg');
@@ -137,12 +137,12 @@ export async function HEAD(request: NextRequest) {
         headers.set('Access-Control-Allow-Headers', 'Range');
 
         return new Response(null, { headers, status: 200 });
-    } catch (error) {
+    } catch {
         return new Response(null, { status: 404 });
     }
 }
 
-export async function OPTIONS(request: NextRequest) {
+export async function OPTIONS() {
     // Handle CORS preflight requests
     const headers = new Headers();
     headers.set('Access-Control-Allow-Origin', '*');

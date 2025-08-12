@@ -91,7 +91,7 @@ async function getVideoInfo(videoId: string) {
 }
 
 // Function to create a proxy stream URL
-async function createProxyStreamUrl(videoId: string, format: any) {
+async function createProxyStreamUrl(videoId: string) {
     // Use our streaming endpoint for better compatibility and CORS handling
     return `/api/youtube/stream?videoId=${videoId}`;
 }
@@ -153,7 +153,7 @@ export async function GET(request: NextRequest) {
         }
 
         // Create proxy stream URL
-        const audioUrl = await createProxyStreamUrl(videoId, audioFormat);
+        const audioUrl = await createProxyStreamUrl(videoId);
 
         // Prepare response
         const response = {
@@ -222,8 +222,8 @@ export async function POST(request: NextRequest) {
 
         if (!url) {
             return NextResponse.json(
-                { success: false, error: ERROR_MESSAGES.EMPTY_URL },
-                { status: HTTP_STATUS.BAD_REQUEST }
+                { success: false, error: 'URL is required' },
+                { status: 400 }
             );
         }
 
@@ -232,8 +232,8 @@ export async function POST(request: NextRequest) {
 
         if (!videoId) {
             return NextResponse.json(
-                { success: false, error: ERROR_MESSAGES.INVALID_URL },
-                { status: HTTP_STATUS.BAD_REQUEST }
+                { success: false, error: 'Invalid YouTube URL' },
+                { status: 400 }
             );
         }
 
@@ -247,9 +247,9 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
             {
                 success: false,
-                error: error instanceof Error ? error.message : ERROR_MESSAGES.PROCESSING_FAILED
+                error: error instanceof Error ? error.message : 'Failed to process URL'
             },
-            { status: HTTP_STATUS.INTERNAL_SERVER_ERROR }
+            { status: 500 }
         );
     }
 } 

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence, Reorder } from "framer-motion";
+import Image from 'next/image';
 import {
     Play,
     Pause,
@@ -261,10 +262,11 @@ export default function Playlist({
                                         {/* Thumbnail */}
                                         <div className="relative w-10 h-10 sm:w-12 sm:h-12 rounded-lg overflow-hidden bg-muted flex-shrink-0">
                                             {track.thumbnail ? (
-                                                <img
+                                                <Image
                                                     src={track.thumbnail}
                                                     alt={track.title}
-                                                    className="w-full h-full object-cover"
+                                                    fill
+                                                    className="object-cover"
                                                 />
                                             ) : (
                                                 <div className="w-full h-full bg-gradient-to-br from-primary/20 to-primary/40 flex items-center justify-center">
@@ -440,10 +442,11 @@ export default function Playlist({
                                     {/* Thumbnail */}
                                     <div className="relative aspect-square">
                                         {track.thumbnail ? (
-                                            <img
+                                            <Image
                                                 src={track.thumbnail}
                                                 alt={track.title}
-                                                className="w-full h-full object-cover"
+                                                fill
+                                                className="object-cover"
                                             />
                                         ) : (
                                             <div className="w-full h-full bg-gradient-to-br from-primary/20 to-primary/40 flex items-center justify-center">

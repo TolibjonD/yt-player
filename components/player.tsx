@@ -2,6 +2,7 @@
 
 import { useAppSelector, useAppDispatch } from "@/store/hooks";
 import { useState, useRef, useEffect, useCallback } from 'react';
+import Image from 'next/image';
 import {
     Play,
     Pause,
@@ -232,10 +233,12 @@ export function Player() {
                 {/* Track Info */}
                 <div className="flex items-center gap-3 min-w-0 flex-1">
                     {currentTrack.thumbnail && (
-                        <img
+                        <Image
                             src={currentTrack.thumbnail}
                             alt={currentTrack.title}
-                            className="w-12 h-12 rounded-md object-cover"
+                            width={48}
+                            height={48}
+                            className="rounded-md object-cover"
                         />
                     )}
                     <div className="min-w-0 flex-1">

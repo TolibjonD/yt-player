@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, Suspense, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     Music,
@@ -44,16 +44,6 @@ const cardVariants = {
     },
 };
 
-// Loading component
-const LoadingSpinner = () => (
-    <div className="flex items-center justify-center h-64">
-        <div className="relative">
-            <div className="w-12 h-12 border-4 border-rose-500/20 border-t-rose-500 rounded-full animate-spin"></div>
-            <div className="absolute inset-0 w-12 h-16 border-4 border-transparent border-t-orange-500 rounded-full animate-spin" style={{ animationDelay: '-0.5s' }}></div>
-        </div>
-    </div>
-);
-
 // Stats component with store integration
 function StatsCards() {
     // Use Redux selectors
@@ -62,7 +52,7 @@ function StatsCards() {
 
     // Calculate stats even when no playlists exist
     const totalTracks = currentPlaylist ? currentPlaylist.tracks.length :
-        playlists.reduce((total: number, playlist: any) => total + playlist.tracks.length, 0);
+        playlists.reduce((total: number, playlist: { tracks: unknown[] }) => total + playlist.tracks.length, 0);
     const totalPlaylists = playlists.length;
     const totalLikedTracks = likedTracks.length;
 
