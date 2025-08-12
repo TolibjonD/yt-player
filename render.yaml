@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: youtube-mp3-api
+    env: node
+    buildCommand: npm ci --only=production
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
